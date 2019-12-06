@@ -1,4 +1,4 @@
-var center = null, cercle = null, drawCircles = true;
+var center = null, cercle = null, drawCircles = true, reset = false;
 var rayons = [], angles = [], points = [], frequences = [], isX = [], offset = [];
 var zoom , speed = 1;
 
@@ -241,15 +241,9 @@ function draw() {
 
     for (let i = 0; i < points.length; i++)
     {
-        if (points[i].length > 200)
+        if (points[i].length > 240)
             points[i] = points[i].slice(1);
     }
-
-    if (center) {
-        strokeWeight(5);
-        point(0, 0);
-    }
-
     if (points.length)
     {
         derniersPoints = []
@@ -273,12 +267,12 @@ function draw() {
 
         for (let n = 0; n < 5 && !drawCircles; n++)
         {
-            for (let i = 0; i < 15 && i < points[n].length - 1; i++)
+            for (let i = 0; i < 50 && i < points[n].length - 1; i++)
             {
                 strokeWeight(8);
                 let c1 = points[n][points[n].length - i - 1], c2 = points[n][points[n].length - i - 2];
 
-                let trs = map(i, 0, 15, 125, 0);
+                let trs = map(i, 0, 50, 125, 0);
 
                 stroke(0x22, 0xba, 0xba, trs);
                 line(c1.x, c1.y, c2.x, c2.y);
@@ -306,19 +300,6 @@ function draw() {
                 line(c1.x, c1.y, c2.x, c2.y);
             }
         }
-    }
-
-    if (cercle && centers.length) {
-        rayon = p5.vector.add(createVector(tx, ty), centers[centers.length - 1]).dist(createVector(mouseX, mouseY));
-        stroke(255, 255, 0);
-        strokeWeight(1);
-        ellipse(centers[centers.length - 1].x, centers[centers.length - 1].y, rayon * 2, rayon * 2);
-
-        resetMatrix();
-        strokeWeight(5);
-
-        point(mouseX, mouseY);
-
     }
 
     //filter(BLUR, 2);
@@ -350,12 +331,13 @@ function windowResized() {
 }
 
 
-/*function mouseMoved()
+function mouseMoved()
 {
+    if (!reset) return;
     newCenter = createVector(mouseX, mouseY);
     cercle = [center, center.dist(newCenter)];
     //center = newCenter;
-}*/
+}
 
 
 function touchEnded()
@@ -367,24 +349,6 @@ function keyPressed()
 {
     if (key == ' ')
         drawCircles = ! drawCircles;
-    else if (key == 'l')
-        speed *= 2;
-    else if (key == 'k')
-        speed *= 0.5;
 
     speed = constrain(speed, 0.05, 10);
 }
-/*
-function mouseReleased()
-{
-    if (center == null)
-        center = createVector(mouseX, mouseY);
-    else {
-        newCenter = createVector(mouseX, mouseY);
-        centers.push(center);
-        rayons.push(center.dist(newCenter));
-        center = newCenter;
-        points = [];
-    }
-    cercle = null;
-}*/
