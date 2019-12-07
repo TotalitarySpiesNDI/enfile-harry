@@ -1,7 +1,27 @@
-var center = null, cercle = null, drawCircles = true, reset = false;
-var rayons = [], angles = [], points = [], frequences = [], isX = [], offset = [];
-var zoom , speed = 1;
+/*
+* Code permettant le dessin du code d'erreur "404" grâce à des cycloïdes.
+* Responsive et (presque) intéractif
+*/
 
+// Définition et instanciation des variables (elles sont globales de par le fonctionnement de p5)
+
+// Variables utilisée pour l'interaction utilisateur et l'affichage
+var center = null, cercle = null, drawCircles = true, reset = false, zoom , speed = 1;
+/* Caractéristiques des différents cycloïdes : tableaux à deux dimensions [Nombre de cycloïdes][Nombre de cercles par cycloïde]
+* rayons : rayon de chaque cercle (module du coefficient de Fourier)
+* angle : angles de chaque cercle (phase ou argument du coeff de Fourier)
+* frequences : fréquence de rotation pour chaque cercle (= fréquence correspondant au coeff de Fourier)
+* points : trace des dernières positions du bout d'un cycloïdes + des points des 4 et du 0
+*/
+var rayons = [], angles = [], points = [], frequences = [];
+/*
+* isX : tableau de booléen permettant de savoir si le cycloïde représente l'abscisse ou l'ordonnée d'un dessin
+* offset : tableau de points permettant de situer les cycloïdes sur la page (le dessin correspondant est relatif aux cycloïdes)
+*/
+var isX = [], offset = [];
+
+
+//Fonction permettant de créer les tableaux d'un cycloîde à partir des coefficients de Fourier sous forme complexe
 function createCircles(complexes)
 {
     let rayons = [], angles = [], frequences = [];
@@ -9,34 +29,43 @@ function createCircles(complexes)
     let i = 1;
     for (let c of complexes.slice(0, 2))
     {
+        // Le complexe c = a + ib est représenté par un tableau [a, b]
         vect = createVector(c[0], c[1]);
+        // On ajoute le module du complexe amplifié pour qu'on voit qqchose
         rayons.push(10 * vect.mag());
-        angles.push(atan2(vect.y, vect.x));
+        // On ajoute l'argument du complexe
+        angles.push(vect.heading());
+        //On assume que les coefficients fournis correspondent aux fréquences [1, n]
         frequences.push(i++);
     }
     return [rayons, angles, frequences];
 }
 
+// Créer les tableaux d'un cycloïde à partir des coeff de Fourier sous forme [module, argument, fréquence correspondante]
 function createCirclesMagAngle(magAngle)
 {
     let rayons = [], angles = [], frequences = [];
 
     for (let ma of magAngle)
     {
-        rayons.push(10  * ma[0]);
+        //On ajoute le coefficient et la fréquence correspondante, en amplifiant aussi le module
+        rayons.push(2 * ma[0]);
         angles.push(ma[1]);
         frequences.push(ma[2]);
     }
     return [rayons, angles, frequences];
 }
 
+// Fonction appelée par p5 pour initialiser le programme
 function setup() {
+    //On créer le canvas où l'on dessine, dans le container prévu à cet effet
     canvas = createCanvas(windowWidth, 0.9 * windowHeight);
     canvas.parent('container');
-    frameRate(1000);
 
+    //On met à jour le zoom en fonction de la taille de la fenêtre
     gererZoom();
 
+    // Coefficient sous forme module, argument, fréquence du zero (Cycloïde x puis y)
     let zero = [
         [
     	[52.80275732768522,	3.554840146074072,	1	],
@@ -71,7 +100,7 @@ function setup() {
     	[0.786716734424327,	-0.00220185166303,	14	],
     ]
 ];
-
+    // Coefficient sous forme module, argument, fréquence des 4 (Cycloïde x puis y)
     let quatre = [[
     [88.26861335390649,4.025077728087553,1],
     [ 53.78656292580754, 0.40663276045467334, 2 ],
@@ -138,9 +167,12 @@ function setup() {
 ]];
 
 
+    //On "alloue" 3 tableaux supplémentaires pour les 3 dessins
     points.push([]);
     points.push([]);
     points.push([]);
+
+    //On crée les cycloïdes à partir des coefficients de Fourier
     for (let arg of quatre)
     {
         res = createCirclesMagAngle(arg);
@@ -149,7 +181,6 @@ function setup() {
         frequences.push(res[2]);
         points.push([]);
     }
-
     for (let arg of zero)
     {
         res = createCirclesMagAngle(arg);
@@ -159,6 +190,7 @@ function setup() {
         points.push([]);
     }
 
+    //On initialise les infirmations sur les cycloïdes
     isX = [true, false, true, false, true, false];
     let unitH = 600, unitW = 850;
     offset = [
@@ -171,36 +203,49 @@ function setup() {
     ];
 }
 
+//Fonction appelée par p5 pour actualiser l'affichage
 function draw() {
-    if (frameCount % parseInt(speed) == 0) background(0);
+    // On efface tout
+    background(0);
 
+    //
     let transparencyCircle = min(255, map(frameCount, 150, 250, 0, 255));
 
+    // On fait un zoom centré, d'un facteur `zoom`
     translate(width / 2, height / 2);
     scale(zoom, zoom);
     translate( - width / 2, -height / 2);
 
+    //On définit les caractéristiques de dessin des cycloïdes
     noFill();
     strokeWeight(1);
     stroke(255, 255, 255, 125);
-    //let avancee = (5 * millis()) / (1000 * pow(2, centers.length));
 
+    // Variable d'avancement du temps
     let time = millis() / 1000;
+    // Tableaux permettant, à chaque boucle et au final, de savoir la position du centre du cercle n de chaque cycloïde
     let translateX = [], translateY = [];
+    // Pour chaque cycloïde
     for (let n = 0; n < rayons.length; n++)
     {
+        // Tableaux de rayons, d'angles et de fréquences des cercles
         r = rayons[n];
         a = angles[n];
+        f = frequences[n];
         translateX.push(0);
         translateY.push(0);
 
+        // Pour chaque cercle du cycloïde
         for (let i = 0; i <= r.length; i++)
         {
-            freq = frequences[n][i - 1];
+            freq = f[i - 1];
+            // Si le cercle n'est pas le premier, on calcule la position de son centre (qui est en rotation sur le cercle précédent)
             if (i) {
+                // Effet de style pour le deuxième 4 (cycloïdes 2 et 3) : on inverse le sens de rotation (on aurait aussi pu dephaser tous les cercles)
                 coeff = n == 2 || n == 3 ? -1 : 1;
-                var dx = (isX[n] ? cos : sin)(coeff * i * time - a[i - 1]) * r[i - 1] / 5;
-                var dy = (isX[n] ? sin : cos)(coeff * i * time - a[i - 1]) * r[i - 1] / 5;
+                // On calcule la position du centre du cercle i par rapport au cercle i - 1
+                var dx = (isX[n] ? cos : sin)(coeff * i * time - a[i - 1]) * r[i - 1];
+                var dy = (isX[n] ? sin : cos)(coeff * i * time - a[i - 1]) * r[i - 1];
                 translateX[n] += dx
                 translateY[n] += dy
             }
@@ -209,50 +254,72 @@ function draw() {
                 translateX[n] = offset[n].x;
                 translateY[n] = offset[n].y;
             }
+            // Le centre du cercle est notre origine
             push();
             translate(translateX[n], translateY[n]);
 
+            /* On n'affiche le cercle que si :
+             *  - Ce n'est pas le cycloïde y du 0 (pas de place graphiquement)
+             *  - L'utilisateur a demandé à voir les cercles (oui par défaut)
+             *  - On n'est pas au dernier cercle (qui n'est techniquement pas un cercle mais juste un point)
+             *  - On a fait 150 itérations d'affichage (animation du début)
+            */
             if (n != 5 && drawCircles && i < r.length - 1 && frameCount > 150) {
+                // Les cercles sont blancs (avec une animation de transparence au début) et plutöt épais
                 stroke(255, 255, 255, transparencyCircle);
                 strokeWeight(5);
+
+                // Centre du cercle (origine)
                 point(0, 0);
-                if (typeof dx != "undefined") {
+                // Si on n'est pas au premier cercle, affichage du trait reliant le centre du cercle i au centre du cercle i - 1
+                if (i) {
                     strokeWeight(3);
                     line(-dx, -dy, 0, 0);
                 }
+                // On dessine le cercle un peu moins épais (les deux derniers paramètres sont les diamètres a et b d'une ellipse)
                 strokeWeight(3);
-                ellipse(0, 0, r[i] * 2 / 5, r[i] * 2 / 5);
+                ellipse(0, 0, r[i] * 2, r[i] * 2);
             }
 
+            // On réinitialise les translations (depuis le dernier push())
             pop();
         }
     }
 
+    // Si on a des cycloïdes
     if (rayons.length) {
+        // On garde la trace de chaque cycloïde
         var x = [], y = [];
         for (let i = 0; i < translateX.length; i++)
         {
             points[i].push(createVector(translateX[i], translateY[i]));
         }
+        // On crée les chiffres à partir des positions des bons cycloïdes
         points[translateX.length].push(createVector(translateX[0], translateY[1]));
         points[translateX.length + 1].push(createVector(translateX[2], translateY[3]));
         points[translateX.length + 2].push(createVector(translateX[4], translateY[5]));
     }
 
+    // Pour chaque trace, on limite à 240 points
     for (let i = 0; i < points.length; i++)
     {
         if (points[i].length > 240)
             points[i] = points[i].slice(1);
     }
+
+    // Si on a des traces
     if (points.length)
     {
+        // On récupère les traces des cycloïdes et des chiffres
         derniersPoints = []
         for (let n = 0; n < 9; n++)
             derniersPoints.push(points[n][points[n].length - 1]);
 
         strokeWeight(4);
 
+        // Si on doit dessiner les cycloïdes
         if (drawCircles && frameCount > 150) {
+            // On dessine les traits liants les cycloïdes aux chiffres, en gardant un peu de transparence pour laisser le devant aux chiffres
             stroke(200, 200, 200, min(transparencyCircle, 180));
             line(derniersPoints[0].x, derniersPoints[0].y, derniersPoints[6].x, derniersPoints[6].y);
             line(derniersPoints[1].x, derniersPoints[1].y, derniersPoints[6].x, derniersPoints[6].y);
@@ -265,6 +332,7 @@ function draw() {
             line(derniersPoints[4].x, derniersPoints[4].y, derniersPoints[8].x, derniersPoints[8].y);
         }
 
+        // On dessine les traces des cycloïdes (sauf pour le cycloïde y du 0) seulement si les cycloïdes sont invisibles
         for (let n = 0; n < 5 && !drawCircles; n++)
         {
             for (let i = 0; i < 50 && i < points[n].length - 1; i++)
@@ -279,6 +347,7 @@ function draw() {
             }
         }
 
+        //On affiche les chiffres
         for (let n = 6; n < 9; n++)
         {
             for (let i = 1; i < points[n].length; i++)
@@ -290,21 +359,15 @@ function draw() {
                 if (i < 80)
                     trs = map(i, 0, 80, 0, 255);
 
-                if (n == 0)
-                    stroke(0x22, 0xba, 0xba, trs);
-                else if (n == 1)
-                    stroke(0xba, 0xba, 0x22, trs);
-                else if (n >= 2)
-                    stroke(0xba, 0x22, 0xba, trs);
+                stroke(0xba, 0x22, 0xba, trs);
 
                 line(c1.x, c1.y, c2.x, c2.y);
             }
         }
     }
-
-    //filter(BLUR, 2);
 }
 
+// Ancienne fonction pour zoomer (interdit en version finale)
 /*function mouseWheel(e)
 {
     if (e.delta > 0)
@@ -318,19 +381,21 @@ function draw() {
 }
 */
 
+// Permet de gerer le zoom en fct de la taille de la fenêtre
 function gererZoom()
 {
     zoomX = ((windowWidth * 0.8) / 1240) * 0.40;
     zoomY = ((windowHeight * 0.8) / 600) * 0.22;
     zoom = min(zoomX, zoomY);
 }
+// Gère le changement de taile de la fenêtre
 function windowResized() {
   resizeCanvas(0.9 * windowWidth, 0.9 * windowHeight);
 
   gererZoom();
 }
 
-
+//Ancienne fonction pour créer un nouveau cercle
 function mouseMoved()
 {
     if (!reset) return;
@@ -339,16 +404,15 @@ function mouseMoved()
     //center = newCenter;
 }
 
-
+// Sur appareil tactile, pour voir ou non les cercles
 function touchEnded()
 {
     drawCircles = ! drawCircles;
 }
 
+// Sur ordi c'est la touche espace
 function keyPressed()
 {
     if (key == ' ')
         drawCircles = ! drawCircles;
-
-    speed = constrain(speed, 0.05, 10);
 }
